@@ -1,0 +1,7 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: token-test
+  labels:
+    openpolicyagent.org/webhook: ignore

@@ -1,0 +1,92 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: token-client
+  namespace: token-test
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: token-client
+  namespace: token-test
+spec:
+  ports:
+    - port: 8080
+      name: http
+  selector:
+    k8s-app: token-client
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: token-client
+  namespace: token-test
+  labels:
+    k8s-app: token-client
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: token-client
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        k8s-app: token-client
+      annotations:
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: token-client
+      imagePullSecrets:
+        - name: image-pull-secret
+      containers:
+        - name: token-client
+          imagePullPolicy: Always
+          image: ishenle/token-client:v0.3
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              memory: 100Mi
+              cpu: 100m
+            requests:
+              memory: 10Mi
+              cpu: 10m
+          volumeMounts:
+            - mountPath: /var/run/secrets/tokens
+              name: factor-token
+      volumes:
+        - name: factor-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  audience: factors
+                  path: factor-token
+                  expirationSeconds: 600
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: token-client
+  namespace: token-test
+  labels:
+    k8s-app: token-client
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: x.token.shenle.lu
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: token-client
+                port:
+                  number: 8080
